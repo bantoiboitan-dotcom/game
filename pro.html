@@ -1,0 +1,714 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+    LineChart, TrendingUp, TrendingDown, Briefcase, Wallet, DollarSign, 
+    Activity, Lock, Unlock, RefreshCcw, Info, Settings, LayoutDashboard, 
+    Gamepad2, ArrowRightLeft, ShoppingCart, Zap, BrainCircuit, Coffee, 
+    Star, Home, Crown, Dices, ChevronRight, Save, Upload, Download, X
+} from 'lucide-react';
+
+// --- CẤU HÌNH GAME (GIỮ NGUYÊN) ---
+const MEME_COINS = [
+    { name: 'Bảo cỏ', symbol: 'BAOCO' }, { name: 'Q.Như', symbol: 'QNHU' },
+    { name: 'Trọng bò', symbol: 'TRONGBO' }, { name: 'Nhi Khổng', symbol: 'NHIKHONG' },
+    { name: 'Khoa pug', symbol: 'KHOAPUG' }, { name: 'Hiếu FF', symbol: 'HIEUFF' },
+    { name: 'Lộn lời', symbol: 'LONLOI' }, { name: 'Tâm phật', symbol: 'TAMPHAT' },
+    { name: 'Khôi pịa', symbol: 'KHOIPIA' }, { name: 'Quân đội', symbol: 'QUANDOI' },
+    { name: 'Trân péo', symbol: 'TRANPEO' }, { name: 'Thư sét', symbol: 'THUSET' }
+];
+
+const INITIAL_ASSETS = [
+    { symbol: 'VNM', name: 'Vinamilk', type: 'STOCK', basePrice: 68000, volatility: 0.012 },
+    { symbol: 'VIC', name: 'Vingroup', type: 'STOCK', basePrice: 45000, volatility: 0.015 },
+    { symbol: 'BTC', name: 'Bitcoin', type: 'CRYPTO', basePrice: 1500000000, volatility: 0.05 },
+    { symbol: 'ETH', name: 'Ethereum', type: 'CRYPTO', basePrice: 80000000, volatility: 0.04 },
+    ...MEME_COINS.map(c => ({ ...c, type: 'MEME', basePrice: 100000, volatility: 0.15 }))
+];
+
+const JOBS = [
+    { id: 1, title: 'Rửa Bát Thuê', salary: 50000, cooldown: 1000, reqXp: 0, energyCost: 5 },
+    { id: 2, title: 'Phát Tờ Rơi', salary: 100000, cooldown: 2000, reqXp: 100, energyCost: 10 },
+    { id: 3, title: 'Livestream Bán Kem', salary: 500000, cooldown: 3000, reqXp: 500, energyCost: 20 },
+    { id: 4, title: 'Reviewer Ẩm Thực', salary: 2000000, cooldown: 5000, reqXp: 2000, energyCost: 30 },
+    { id: 5, title: 'CEO Đa Cấp', salary: 20000000, cooldown: 10000, reqXp: 10000, energyCost: 50 },
+];
+
+const HOUSE_LEVELS = [
+    { level: 0, name: 'Gầm Cầu', cost: 0, desc: 'Nơi khởi đầu của mọi huyền thoại', prompt: 'homeless_shelter_under_bridge_dark_gloomy_night' },
+    { level: 1, name: 'Phòng Trọ', cost: 5000000, desc: 'Chật chội nhưng che mưa nắng', prompt: 'small_cramped_apartment_room_messy_realistic' },
+    { level: 2, name: 'Chung Cư Mini', cost: 500000000, desc: 'Có thang máy, an ninh tốt', prompt: 'modern_apartment_building_city_view_balcony' },
+    { level: 3, name: 'Nhà Phố', cost: 5000000000, desc: '3 tầng 1 tum, mặt tiền rộng', prompt: 'luxury_townhouse_vietnam_street_modern_architecture' },
+    { level: 4, name: 'Biệt Thự', cost: 20000000000, desc: 'Hồ bơi, sân vườn, gara xe', prompt: 'luxury_villa_with_pool_and_garden_sunset_cinematic' },
+    { level: 5, name: 'Lâu Đài', cost: 100000000000, desc: 'Dành cho Vua của Stock Empire', prompt: 'futuristic_cyberpunk_castle_floating_island_neon_lights_epic' },
+];
+
+const SHOP_ITEMS = [
+    { id: 'coffee', name: 'Cà Phê Sữa', price: 20000, type: 'ENERGY', value: 20, icon: '☕' },
+    { id: 'redbull', name: 'Bò Húc', price: 50000, type: 'ENERGY', value: 50, icon: '⚡' },
+    { id: 'course', name: 'Khóa Học Lùa Gà', price: 2000000, type: 'XP', value: 500, icon: '📚' },
+    { id: 'sh150', name: 'SH 150i', price: 120000000, type: 'FLEX', icon: '🛵' },
+    { id: 'mercedes', name: 'Mercedes G63', price: 12000000000, type: 'FLEX', icon: '🚙' },
+];
+
+// --- UTILS ---
+const formatVND = (num) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(num);
+
+// --- CHART COMPONENT ---
+const MiniChart = ({ data, color }) => {
+    if (!data || data.length < 2) return <div className="h-32 flex items-center justify-center text-xs text-slate-500">Đang tạo dữ liệu...</div>;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const range = max - min || 1;
+    const points = data.map((p, i) => {
+        const x = (i / (data.length - 1)) * 100;
+        const y = 100 - ((p - min) / range) * 100;
+        return `${x},${y}`;
+    }).join(' ');
+    return (
+        <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+            <defs>
+                <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
+                    <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                </linearGradient>
+            </defs>
+            <path d={`M0,100 ${points} L100,100 Z`} fill={`url(#grad-${color})`} stroke="none" />
+            <polyline fill="none" stroke={color} strokeWidth="2" points={points} vectorEffect="non-scaling-stroke" />
+        </svg>
+    );
+};
+
+// --- SUB-COMPONENTS (Tách ra để sửa lỗi Hooks) ---
+
+const JobItem = ({ job, xp, energy, setEnergy, setWallet, setXp, notify }) => {
+    const locked = xp < job.reqXp;
+    const [working, setWorking] = useState(false);
+
+    const handleWork = () => {
+        if (energy < job.energyCost) return notify("Hết sức rồi!", 'error');
+        setEnergy(e => e - job.energyCost);
+        setWorking(true);
+        setTimeout(() => {
+            setWallet(w => w + job.salary);
+            setXp(x => x + 10);
+            setWorking(false);
+            notify(`+${formatVND(job.salary)}`);
+        }, job.cooldown);
+    };
+
+    return (
+        <div className={`p-4 rounded-xl border flex items-center justify-between ${locked ? 'bg-slate-900/50 border-slate-800 opacity-50' : 'bg-slate-900 border-slate-700'}`}>
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400">
+                    {locked ? <Lock size={18}/> : <Briefcase size={18}/>}
+                </div>
+                <div>
+                    <div className="font-bold">{job.title}</div>
+                    <div className="text-xs text-slate-500">Tốn {job.energyCost}⚡ • Cần {job.reqXp} XP</div>
+                </div>
+            </div>
+            <div className="text-right">
+                <div className="text-green-400 font-bold mb-1">+{formatVND(job.salary)}</div>
+                <button 
+                    disabled={locked || working}
+                    onClick={handleWork}
+                    className={`px-4 py-1.5 rounded text-sm font-bold min-w-[90px] ${working ? 'bg-yellow-600' : locked ? 'bg-slate-700' : 'bg-blue-600 hover:bg-blue-500'}`}
+                >
+                    {working ? 'Đang làm...' : locked ? 'Khóa' : 'Làm ngay'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const MarketView = ({ assets, selectedAsset, setSelectedAsset, broker, setBroker, inventory, setInventory, notify, callAI, isAiThinking, aiAnalysis }) => {
+    const current = assets.find(a => a.symbol === selectedAsset) || assets[0];
+    const isUp = current.trend >= 0;
+    const [tradeQty, setTradeQty] = useState(10);
+
+    const handleTrade = (type) => {
+        const total = current.price * tradeQty;
+        if (type === 'BUY') {
+            if (broker < total) return notify("Không đủ tiền trong broker!", 'error');
+            setBroker(prev => prev - total);
+            setInventory(prev => ({ ...prev, [current.symbol]: (prev[current.symbol] || 0) + tradeQty }));
+            notify(`Mua ${tradeQty} ${current.symbol} thành công!`);
+        } else {
+            if ((inventory[current.symbol] || 0) < tradeQty) return notify("Không đủ hàng!", 'error');
+            setBroker(prev => prev + total);
+            setInventory(prev => ({ ...prev, [current.symbol]: prev[current.symbol] - tradeQty }));
+            notify(`Bán ${tradeQty} ${current.symbol} thành công!`);
+        }
+    };
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full pb-20">
+            {/* List */}
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col h-[400px] lg:h-auto">
+                <div className="p-3 bg-slate-800/50 font-bold border-b border-slate-700 text-sm uppercase tracking-wider text-slate-400">Thị trường</div>
+                <div className="overflow-y-auto custom-scrollbar flex-1">
+                    {assets.map(a => (
+                        <div key={a.symbol} onClick={() => setSelectedAsset(a.symbol)} className={`p-3 border-b border-slate-800/50 flex justify-between items-center cursor-pointer hover:bg-slate-800 ${selectedAsset === a.symbol ? 'bg-slate-800 border-l-4 border-l-blue-500' : ''}`}>
+                            <div>
+                                <div className="font-bold flex items-center gap-2">
+                                    {a.symbol} 
+                                    {a.type === 'MEME' && <span className="bg-pink-900/50 text-pink-400 text-[10px] px-1 rounded">MEME</span>}
+                                </div>
+                                <div className="text-xs text-slate-500">{a.name}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className={`font-mono font-bold ${a.trend >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatVND(a.price)}</div>
+                                <div className={`text-xs ${a.trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>{a.trend >= 0 ? '+' : ''}{(a.trend * 100).toFixed(2)}%</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Detail */}
+            <div className="lg:col-span-2 space-y-4">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 className="text-2xl font-bold">{current.symbol}</h2>
+                            <div className="text-slate-400">{current.name}</div>
+                        </div>
+                        <button onClick={callAI} disabled={isAiThinking} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-900/20 transition disabled:opacity-50">
+                            <BrainCircuit size={16}/> {isAiThinking ? 'AI Đang nghĩ...' : 'Hỏi AI'}
+                        </button>
+                    </div>
+
+                    {aiAnalysis && (
+                        <div className="mb-4 p-3 bg-indigo-900/20 border border-indigo-500/30 rounded-lg text-indigo-300 text-sm italic">
+                            <span className="font-bold not-italic mr-2">🤖 Gemini:</span> "{aiAnalysis}"
+                        </div>
+                    )}
+
+                    <div className="h-48 bg-slate-950 rounded-xl mb-4 p-2 border border-slate-800">
+                        <MiniChart data={current.history} color={isUp ? '#4ade80' : '#f87171'} />
+                    </div>
+
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <div className="flex justify-between text-xs text-slate-400 mb-2">
+                            <span>Có: <b className="text-white">{inventory[current.symbol] || 0}</b> cp</span>
+                            <span>Sức mua: <b className="text-purple-400">{formatVND(broker)}</b></span>
+                        </div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <button onClick={() => setTradeQty(q => Math.max(10, q-10))} className="w-10 h-10 bg-slate-700 rounded text-white font-bold">-</button>
+                            <input type="number" value={tradeQty} onChange={e => setTradeQty(Number(e.target.value))} className="flex-1 bg-slate-900 border border-slate-600 rounded h-10 text-center font-bold text-white"/>
+                            <button onClick={() => setTradeQty(q => q+10)} className="w-10 h-10 bg-slate-700 rounded text-white font-bold">+</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => handleTrade('BUY')} className="py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-white shadow-lg active:scale-95 transition">MUA</button>
+                            <button onClick={() => handleTrade('SELL')} className="py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-white shadow-lg active:scale-95 transition">BÁN</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN APP ---
+export default function App() {
+    // STATE
+    const [wallet, setWallet] = useState(0);
+    const [broker, setBroker] = useState(0);
+    const [energy, setEnergy] = useState(100);
+    const [xp, setXp] = useState(0);
+    const [assets, setAssets] = useState(INITIAL_ASSETS.map(a => ({ ...a, price: a.basePrice, history: [a.basePrice], trend: 0 })));
+    const [inventory, setInventory] = useState({});
+    const [houseLevel, setHouseLevel] = useState(0);
+    const [items, setItems] = useState({});
+    const [activeTab, setActiveTab] = useState('HOME');
+    const [selectedAsset, setSelectedAsset] = useState(assets[0].symbol);
+    const [notification, setNotification] = useState(null);
+    const [showSettings, setShowSettings] = useState(false); // NEW: Toggle Settings Modal
+    
+    // AI Logic
+    const [apiKey, setApiKey] = useState('AUTO_GENERATED_KEY_DEMO_MODE'); 
+    const [aiAnalysis, setAiAnalysis] = useState('');
+    const [isAiThinking, setIsAiThinking] = useState(false);
+
+    // Tai Xiu Logic
+    const [dices, setDices] = useState([1, 1, 1]);
+    const [isRolling, setIsRolling] = useState(false);
+    const [betAmount, setBetAmount] = useState(100000);
+    const [lastResult, setLastResult] = useState(null);
+
+    // --- EFFECTS ---
+    useEffect(() => {
+        const saved = localStorage.getItem('stockEmpireV4');
+        if (saved) {
+            const data = JSON.parse(saved);
+            setWallet(data.wallet || 0);
+            setBroker(data.broker || 0);
+            setXp(data.xp || 0);
+            setEnergy(data.energy !== undefined ? data.energy : 100);
+            setHouseLevel(data.houseLevel || 0);
+            setInventory(data.inventory || {});
+            setItems(data.items || {});
+        }
+    }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            localStorage.setItem('stockEmpireV4', JSON.stringify({ wallet, broker, xp, energy, houseLevel, inventory, items }));
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [wallet, broker, xp, energy, houseLevel, inventory, items]);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setAssets(prev => prev.map(a => {
+                const change = (Math.random() - 0.5) * 2 * a.volatility;
+                let newPrice = a.price * (1 + change);
+                if (newPrice < 1000) newPrice = 1000;
+                const newHistory = [...a.history, newPrice];
+                if (newHistory.length > 30) newHistory.shift();
+                return { ...a, price: newPrice, trend: change, history: newHistory };
+            }));
+        }, 2000);
+        return () => clearInterval(timer);
+    }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => setEnergy(e => Math.min(e + 1, 100)), 5000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const notify = (msg, type = 'success') => {
+        setNotification({ msg, type });
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    // --- SAVE / LOAD LOGIC ---
+    const exportSave = () => {
+        const saveData = { wallet, broker, xp, energy, houseLevel, inventory, items };
+        const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `stock_empire_save_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        notify("Đã tải file save về máy!", 'success');
+    };
+
+    const importSave = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                // Basic validation
+                if (data.wallet === undefined || data.broker === undefined) throw new Error("File lỗi");
+                
+                setWallet(data.wallet);
+                setBroker(data.broker);
+                setXp(data.xp || 0);
+                setEnergy(data.energy || 100);
+                setHouseLevel(data.houseLevel || 0);
+                setInventory(data.inventory || {});
+                setItems(data.items || {});
+                
+                notify("Đã nạp file save thành công!", 'success');
+                setShowSettings(false);
+            } catch (err) {
+                notify("File save không hợp lệ!", 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    // --- GAMEPLAY LOGIC ---
+    const playTaiXiu = (choice) => { 
+        if (wallet < betAmount) return notify("Không đủ tiền mặt!", 'error');
+        if (isRolling) return;
+
+        setWallet(prev => prev - betAmount);
+        setIsRolling(true);
+
+        let rollCount = 0;
+        const rollInterval = setInterval(() => {
+            setDices([Math.ceil(Math.random()*6), Math.ceil(Math.random()*6), Math.ceil(Math.random()*6)]);
+            rollCount++;
+            if (rollCount > 10) {
+                clearInterval(rollInterval);
+                const finalDices = [Math.ceil(Math.random()*6), Math.ceil(Math.random()*6), Math.ceil(Math.random()*6)];
+                setDices(finalDices);
+                const sum = finalDices.reduce((a,b)=>a+b,0);
+                const result = sum >= 11 ? 1 : 0; 
+                setIsRolling(false);
+                
+                const resultText = result === 1 ? 'TÀI' : 'XỈU';
+                if (result === choice) {
+                    setWallet(prev => prev + betAmount * 2);
+                    setLastResult(`Về ${sum} nút (${resultText}) - THẮNG +${formatVND(betAmount)}`);
+                    notify("Thắng lớn rồi đại gia ơi!", 'success');
+                } else {
+                    setLastResult(`Về ${sum} nút (${resultText}) - THUA -${formatVND(betAmount)}`);
+                    notify("Còn thở là còn gỡ...", 'error');
+                }
+            }
+        }, 100);
+    };
+
+    const callAI = () => {
+        setIsAiThinking(true);
+        const current = assets.find(a => a.symbol === selectedAsset) || assets[0];
+        
+        setTimeout(() => {
+            const phrases = [
+                `Con ${current.symbol} này đang ${current.trend > 0 ? 'bay nóc' : 'dò đáy'}. ${current.trend > 0 ? 'Múc ngay kẻo lỡ!' : 'Bắt dao rơi là đứt tay đấy.'}`,
+                `Theo quẻ bói sáng nay thì ${current.symbol} ${current.trend > 0 ? 'sắp x2 tài khoản' : 'sắp chia 5 xẻ 7'}. Cẩn trọng!`,
+                `Nhìn chart con ${current.symbol} này uy tín đấy. Uy tín như lời hứa trả nợ của bạn thân tôi.`,
+                `Chuyên gia tài chính (là tôi) khuyên bạn nên ${current.trend > 0 ? 'ALL IN' : 'bán nhà đi... à nhầm bán cổ phiếu đi'}.`,
+            ];
+            setAiAnalysis(phrases[Math.floor(Math.random() * phrases.length)]);
+            setIsAiThinking(false);
+        }, 1500);
+    };
+
+    const upgradeHouse = () => {
+        const nextLevel = HOUSE_LEVELS[houseLevel + 1];
+        if (!nextLevel) return notify("Bạn đã ở đỉnh cao xã hội rồi!", 'success');
+        if (wallet < nextLevel.cost) return notify("Không đủ tiền xây nhà!", 'error');
+        
+        setWallet(prev => prev - nextLevel.cost);
+        setHouseLevel(prev => prev + 1);
+        notify(`Đã xây xong ${nextLevel.name}!`, 'success');
+    };
+
+    // --- RENDER HELPERS ---
+    const renderHome = () => {
+        const netWorth = wallet + broker + Object.keys(inventory).reduce((acc, sym) => {
+            const price = assets.find(a => a.symbol === sym)?.price || 0;
+            return acc + (price * inventory[sym]);
+        }, 0);
+
+        const house = HOUSE_LEVELS[houseLevel];
+        const houseImgUrl = `https://image.pollinations.ai/prompt/${house.prompt}?width=800&height=400&nologo=true&seed=${houseLevel}`;
+
+        return (
+            <div className="space-y-6 animate-fade-in pb-20">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 rounded-2xl border border-slate-700 shadow-xl">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-xl font-bold">
+                                <Crown size={24} className="text-yellow-300" />
+                            </div>
+                            <div>
+                                <div className="text-sm text-slate-400">Tổng tài sản</div>
+                                <div className="text-2xl font-bold text-white">{formatVND(netWorth)}</div>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-xs text-slate-500 flex items-center justify-end gap-1">{energy}/100 <Zap size={12} className="text-yellow-400 fill-yellow-400"/></div>
+                            <div className="w-24 h-2 bg-slate-700 rounded-full mt-1">
+                                <div className="h-full bg-yellow-400 rounded-full transition-all" style={{width: `${energy}%`}}></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Wallet size={12}/> Tiền Mặt</div>
+                            <div className="text-lg font-bold text-green-400">{formatVND(wallet)}</div>
+                        </div>
+                        <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Activity size={12}/> Broker</div>
+                            <div className="text-lg font-bold text-purple-400">{formatVND(broker)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass-panel p-4 rounded-2xl overflow-hidden relative group">
+                    <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Home size={18} className="text-blue-400"/> Bất Động Sản</h3>
+                    <div className="relative h-48 rounded-xl overflow-hidden mb-3 border border-slate-700">
+                        <img src={houseImgUrl} alt="House" className="w-full h-full object-cover hover:scale-105 transition duration-700"/>
+                        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/90 to-transparent p-3">
+                            <div className="font-bold text-white">{house.name}</div>
+                            <div className="text-xs text-slate-300">{house.desc}</div>
+                        </div>
+                        <div className="absolute top-2 right-2 bg-black/50 backdrop-blur px-2 py-1 rounded text-xs text-white">
+                            AI Generated Real-time
+                        </div>
+                    </div>
+                    {HOUSE_LEVELS[houseLevel + 1] && (
+                        <button 
+                            onClick={upgradeHouse}
+                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl font-bold text-white shadow-lg shadow-blue-900/20 active:scale-95 transition"
+                        >
+                            Nâng Cấp: {formatVND(HOUSE_LEVELS[houseLevel + 1].cost)}
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderGames = () => {
+        return (
+            <div className="max-w-md mx-auto pb-20">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-red-500"></div>
+                    
+                    <h2 className="text-3xl font-black text-white mb-1 uppercase tracking-widest flex items-center justify-center gap-2">
+                        <Dices className="text-red-500" /> Tài Xỉu
+                    </h2>
+                    <p className="text-xs text-slate-500 mb-6">Uy tín xanh chín - 1 ăn 2</p>
+
+                    <div className="flex justify-center gap-4 mb-8 h-16 items-center">
+                        {dices.map((d, i) => (
+                            <div key={i} className={`dice text-3xl font-black ${isRolling ? 'animate-bounce' : ''}`}>
+                                {d}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mb-6 h-10 flex items-center justify-center">
+                        {lastResult ? (
+                            <div className={`font-bold ${lastResult.includes('THẮNG') ? 'text-green-400' : 'text-red-400'}`}>
+                                {lastResult}
+                            </div>
+                        ) : (
+                            <div className="text-slate-600 text-sm">Chờ kết quả...</div>
+                        )}
+                    </div>
+
+                    <div className="bg-slate-800/50 p-4 rounded-xl mb-4">
+                        <div className="text-xs text-slate-400 mb-2 uppercase">Tiền cược</div>
+                        <input 
+                            type="number" 
+                            value={betAmount} 
+                            onChange={e => setBetAmount(Number(e.target.value))} 
+                            className="w-full bg-slate-900 border border-slate-700 text-center text-yellow-400 font-bold text-xl py-2 rounded focus:outline-none focus:border-yellow-500"
+                        />
+                        <div className="flex justify-center gap-2 mt-2">
+                            <button onClick={() => setBetAmount(100000)} className="text-xs px-2 py-1 bg-slate-700 rounded text-slate-300">100k</button>
+                            <button onClick={() => setBetAmount(1000000)} className="text-xs px-2 py-1 bg-slate-700 rounded text-slate-300">1M</button>
+                            <button onClick={() => setBetAmount(wallet)} className="text-xs px-2 py-1 bg-red-900/50 text-red-300 border border-red-900 rounded">All-in</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => playTaiXiu(1)}
+                            disabled={isRolling}
+                            className="h-24 bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-slate-700 hover:border-yellow-500 rounded-xl flex flex-col items-center justify-center group transition active:scale-95"
+                        >
+                            <span className="text-4xl font-black text-slate-500 group-hover:text-yellow-500 transition">TÀI</span>
+                            <span className="text-xs text-slate-600 mt-1">11 - 18</span>
+                        </button>
+                        <button 
+                            onClick={() => playTaiXiu(0)}
+                            disabled={isRolling}
+                            className="h-24 bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-slate-700 hover:border-white rounded-xl flex flex-col items-center justify-center group transition active:scale-95"
+                        >
+                            <span className="text-4xl font-black text-slate-500 group-hover:text-white transition">XỈU</span>
+                            <span className="text-xs text-slate-600 mt-1">3 - 10</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderShop = () => (
+        <div className="grid grid-cols-2 gap-4 pb-20 animate-fade-in">
+            {SHOP_ITEMS.map(item => (
+                <div key={item.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                    <div>
+                        <div className="text-3xl mb-2">{item.icon}</div>
+                        <div className="font-bold text-white">{item.name}</div>
+                        <div className="text-xs text-slate-500 mb-2">{item.type} Item</div>
+                    </div>
+                    <button 
+                        onClick={() => {
+                            if(wallet < item.price) return notify("Không đủ tiền!", 'error');
+                            setWallet(w => w - item.price);
+                            if(item.type === 'ENERGY') setEnergy(e => Math.min(e + item.value, 100));
+                            if(item.type === 'XP') setXp(x => x + item.value);
+                            if(item.type === 'FLEX') setItems(i => ({...i, [item.id]: (i[item.id]||0)+1}));
+                            notify(`Đã mua ${item.name}`);
+                        }}
+                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-green-400 font-bold text-sm"
+                    >
+                        {formatVND(item.price)}
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
+
+    const renderBank = () => (
+        <div className="space-y-6 max-w-lg mx-auto pb-20 animate-fade-in">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
+                <h2 className="text-xl font-bold mb-6 flex items-center justify-center gap-2"><ArrowRightLeft/> Chuyển Tiền</h2>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-black/30 p-4 rounded-xl border border-slate-700">
+                        <div className="text-xs text-slate-500">Ví (Tiền Mặt)</div>
+                        <div className="text-green-400 font-bold">{formatVND(wallet)}</div>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-xl border border-slate-700">
+                        <div className="text-xs text-slate-500">Broker (Đầu Tư)</div>
+                        <div className="text-purple-400 font-bold">{formatVND(broker)}</div>
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="flex gap-2">
+                        <button onClick={() => { if(wallet>=100000) { setWallet(w=>w-100000); setBroker(b=>b+100000); notify("Nạp 100k thành công"); }}} className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl border border-slate-700 font-bold">Nạp 100k</button>
+                        <button onClick={() => { if(wallet>0) { setBroker(b=>b+wallet); setWallet(0); notify("Nạp tất cả thành công"); }}} className="flex-1 bg-green-900/50 hover:bg-green-900 border border-green-800 py-3 rounded-xl font-bold text-green-400">Nạp All</button>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => { if(broker>=100000) { setBroker(b=>b-100000); setWallet(w=>w+100000); notify("Rút 100k thành công"); }}} className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl border border-slate-700 font-bold">Rút 100k</button>
+                        <button onClick={() => { if(broker>0) { setWallet(w=>w+broker); setBroker(0); notify("Rút tất cả thành công"); }}} className="flex-1 bg-purple-900/50 hover:bg-purple-900 border border-purple-800 py-3 rounded-xl font-bold text-purple-400">Rút All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans pb-24 md:pb-0 select-none">
+            <style>
+                {`
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+                body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+                .animate-bounce-short { animation: bounce-short 0.5s infinite; }
+                @keyframes bounce-short { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+                .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+                .dice { width: 40px; height: 40px; background: white; border-radius: 8px; color: black; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+                `}
+            </style>
+            
+            <div className="fixed top-0 w-full z-40 bg-slate-950/80 backdrop-blur border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-lg">
+                <div className="font-black italic text-lg tracking-tighter flex items-center gap-1">
+                    <span className="text-blue-500 text-2xl">STOCK</span>EMPIRE <span className="text-[10px] bg-red-600 px-1 rounded text-white not-italic ml-1">ULTIMATE</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowSettings(true)}
+                        className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 border border-slate-700 text-slate-300"
+                    >
+                        <Settings size={18}/>
+                    </button>
+                    <div className="text-xs bg-slate-900 px-3 py-1 rounded-full border border-slate-800 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> {apiKey === 'AUTO_GENERATED_KEY_DEMO_MODE' ? 'AI: Auto' : 'AI: Pro'}
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto pt-20 px-4">
+                {activeTab === 'HOME' && renderHome()}
+                
+                {activeTab === 'MARKET' && (
+                    <MarketView 
+                        assets={assets}
+                        selectedAsset={selectedAsset}
+                        setSelectedAsset={setSelectedAsset}
+                        broker={broker}
+                        setBroker={setBroker}
+                        inventory={inventory}
+                        setInventory={setInventory}
+                        notify={notify}
+                        callAI={callAI}
+                        isAiThinking={isAiThinking}
+                        aiAnalysis={aiAnalysis}
+                    />
+                )}
+                
+                {activeTab === 'WORK' && (
+                    <div className="space-y-4 pb-20 animate-fade-in">
+                        {JOBS.map(job => (
+                            <JobItem 
+                                key={job.id} 
+                                job={job} 
+                                xp={xp} 
+                                energy={energy} 
+                                setEnergy={setEnergy} 
+                                setWallet={setWallet} 
+                                setXp={setXp} 
+                                notify={notify} 
+                            />
+                        ))}
+                    </div>
+                )}
+                
+                {activeTab === 'GAMES' && renderGames()}
+                {activeTab === 'SHOP' && renderShop()}
+                {activeTab === 'BANK' && renderBank()}
+            </div>
+
+            {/* SETTINGS / SAVE MODAL */}
+            {showSettings && (
+                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-6 relative">
+                        <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X/></button>
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings size={20}/> Cài Đặt / Lưu Trữ</h2>
+                        
+                        <div className="space-y-4">
+                            <button 
+                                onClick={exportSave}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                            >
+                                <Download size={20}/> Lưu File Save (Về Máy)
+                            </button>
+                            
+                            <div className="relative">
+                                <input 
+                                    type="file" 
+                                    accept=".json" 
+                                    onChange={importSave} 
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                                <button className="w-full py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl font-bold flex items-center justify-center gap-2">
+                                    <Upload size={20}/> Nạp File Save (Từ Máy)
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-slate-500 text-center mt-4">
+                                Game cũng tự động lưu vào trình duyệt mỗi 5 giây. 
+                                Dùng tính năng này để chuyển save sang máy khác.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="fixed bottom-0 w-full bg-slate-900/95 backdrop-blur border-t border-slate-800 z-50 pb-safe">
+                <div className="flex justify-around items-center max-w-4xl mx-auto">
+                    {[
+                        { id: 'HOME', icon: LayoutDashboard, label: 'Nhà' },
+                        { id: 'MARKET', icon: TrendingUp, label: 'Sàn' },
+                        { id: 'WORK', icon: Briefcase, label: 'Việc' },
+                        { id: 'GAMES', icon: Gamepad2, label: 'Game' },
+                        { id: 'SHOP', icon: ShoppingCart, label: 'Shop' },
+                        { id: 'BANK', icon: Wallet, label: 'Bank' },
+                    ].map(tab => (
+                        <button 
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex flex-col items-center justify-center py-3 px-2 w-full transition-all ${activeTab === tab.id ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <tab.icon size={22} strokeWidth={activeTab === tab.id ? 2.5 : 2} className={activeTab === tab.id ? '-translate-y-1 transition' : ''}/>
+                            <span className="text-[10px] font-medium mt-1">{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {notification && (
+                <div className={`fixed top-20 right-4 z-[60] px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-bounce-short ${notification.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-green-900/90 border-green-500 text-white'}`}>
+                    {notification.msg}
+                </div>
+            )}
+        </div>
+    );
+}
